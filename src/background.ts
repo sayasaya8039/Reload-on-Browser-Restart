@@ -1,10 +1,13 @@
 /**
  * ブラウザ再起動時に全タブをリロードするService Worker
  * 起動後5秒待ってからリロードを実行
+ *
+ * 注意: Service Workerは非アクティブ時に停止されるため、
+ * setTimeout ではなく chrome.alarms API を使用
  */
 
-// セッションストレージキー
-const SESSION_KEY = 'browser_session_started';
+// アラーム名
+const RELOAD_ALARM = 'reload_all_tabs';
 
 /**
  * 全タブをリロードする
@@ -16,20 +19,24 @@ async function reloadAllTabs(): Promise<void> {
     console.log(`[Reload Extension] ${tabs.length}個のタブをリロードします`);
 
     for (const tab of tabs) {
-      if (tab.id && tab.url) {
+      if (tab.id) {
+        // URLがない場合もリロードを試みる（復元中のタブ対応）
+        const url = tab.url || tab.pendingUrl || '';
+
         // chrome:// や edge:// などの内部ページはスキップ
-        if (tab.url.startsWith('chrome://') ||
-            tab.url.startsWith('edge://') ||
-            tab.url.startsWith('chrome-extension://')) {
-          console.log(`[Reload Extension] スキップ: ${tab.url}`);
+        if (url.startsWith('chrome://') ||
+            url.startsWith('edge://') ||
+            url.startsWith('chrome-extension://') ||
+            url.startsWith('about:')) {
+          console.log(`[Reload Extension] スキップ: ${url || '(URL不明)'}`);
           continue;
         }
 
         try {
           await chrome.tabs.reload(tab.id);
-          console.log(`[Reload Extension] リロード完了: ${tab.url}`);
+          console.log(`[Reload Extension] リロード完了: ${url || '(URL不明)'}`);
         } catch (error) {
-          console.error(`[Reload Extension] リロード失敗: ${tab.url}`, error);
+          console.error(`[Reload Extension] リロード失敗: ${url}`, error);
         }
       }
     }
@@ -42,27 +49,24 @@ async function reloadAllTabs(): Promise<void> {
 
 /**
  * ブラウザ起動時の処理
- * セッションストレージを使って再起動を検知
  */
 async function onBrowserStartup(): Promise<void> {
-  // セッションストレージをチェック（ブラウザ再起動でクリアされる）
-  const result = await chrome.storage.session.get(SESSION_KEY);
+  console.log('[Reload Extension] ブラウザ起動を検知しました。5秒後に全タブをリロードします。');
 
-  if (!result[SESSION_KEY]) {
-    // 新しいセッション = ブラウザが再起動された
-    console.log('[Reload Extension] ブラウザ起動を検知しました。5秒後に全タブをリロードします。');
-
-    // セッションフラグを設定
-    await chrome.storage.session.set({ [SESSION_KEY]: true });
-
-    // 5秒待ってからリロード
-    setTimeout(() => {
-      reloadAllTabs();
-    }, 5000);
-  } else {
-    console.log('[Reload Extension] 既存セッション - リロードは実行しません');
-  }
+  // 5秒後にアラームを発火（Service Workerが停止しても確実に実行）
+  await chrome.alarms.create(RELOAD_ALARM, {
+    delayInMinutes: 5 / 60  // 5秒 = 5/60分
+  });
 }
+
+// アラーム発火時の処理
+chrome.alarms.onAlarm.addListener((alarm) => {
+  console.log(`[Reload Extension] アラーム発火: ${alarm.name}`);
+
+  if (alarm.name === RELOAD_ALARM) {
+    reloadAllTabs();
+  }
+});
 
 // Service Worker起動時に実行
 chrome.runtime.onStartup.addListener(() => {
@@ -73,9 +77,7 @@ chrome.runtime.onStartup.addListener(() => {
 // 拡張機能インストール/更新時
 chrome.runtime.onInstalled.addListener((details) => {
   console.log(`[Reload Extension] onInstalled: ${details.reason}`);
-
-  // インストール時はセッションフラグを設定するだけ（リロードしない）
-  chrome.storage.session.set({ [SESSION_KEY]: true });
+  // インストール時は何もしない（リロード不要）
 });
 
 console.log('[Reload Extension] Service Worker が読み込まれました');

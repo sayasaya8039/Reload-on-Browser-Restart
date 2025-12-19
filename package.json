@@ -1,6 +1,6 @@
 {
   "name": "reload-when-browser-restarts",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "ブラウザ再起動時に5秒待って全タブをリロードする拡張機能",
   "scripts": {
     "build": "tsc",

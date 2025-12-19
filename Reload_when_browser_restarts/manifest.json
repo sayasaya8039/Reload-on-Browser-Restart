@@ -2,10 +2,11 @@
   "manifest_version": 3,
   "name": "Reload on Browser Restart",
   "description": "ブラウザ再起動時に5秒待って全タブを自動リロードします",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "permissions": [
     "tabs",
-    "storage"
+    "storage",
+    "alarms"
   ],
   "background": {
     "service_worker": "background.js",
