@@ -1,0 +1,15 @@
+# 依存関係
+node_modules/
+
+# 秘密鍵
+*.pem
+
+# ビルドキャッシュ
+*.tsbuildinfo
+
+# OS生成ファイル
+.DS_Store
+Thumbs.db
+
+# note記事
+articles/
